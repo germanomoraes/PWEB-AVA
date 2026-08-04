@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\NotaController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -19,10 +20,14 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__.'/auth.php';
 
-use App\Http\Controllers\NotaController;
-
-// Rotas do Bloco de Notas (Exigem que o usuário esteja logado)
 Route::middleware(['auth'])->group(function () {
+    // Rotas da Lixeira (Soft Deletes)
+    Route::get('/notas/lixeira', [NotaController::class, 'lixeira'])->name('notas.lixeira');
+    Route::patch('/notas/{id}/restaurar', [NotaController::class, 'restaurar'])->name('notas.restaurar');
+    Route::delete('/notas/{id}/forcar-exclusao', [NotaController::class, 'forcarExclusao'])->name('notas.forcar-exclusao');
+    
+    // Rotas normais do CRUD
     Route::resource('notas', NotaController::class);
 });
+
 

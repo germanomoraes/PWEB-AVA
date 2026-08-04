@@ -11,9 +11,9 @@ class Nota extends Model
     use HasFactory, SoftDeletes;
 
     /**
-     * The attributes that are mass assignable.
+     * Campos que podem ser atribuídos em massa.
      *
-     * @var array<int, string>
+     * @var array<int,string>
      */
     protected $fillable = [
         'user_id',
@@ -21,15 +21,9 @@ class Nota extends Model
         'conteudo',
     ];
 
-    // MÁGICA DA CRIPTOGRAFIA (adicione este bloco)
-    protected function casts(): array
-    {
-        return [
-            'conteudo' => 'encrypted',
-        ];
-    }
-
-    // Diz que esta nota pertence a um Usuário
+    /**
+     * Relação com o usuário dono da nota.
+     */
     public function user()
     {
         return $this->belongsTo(User::class);

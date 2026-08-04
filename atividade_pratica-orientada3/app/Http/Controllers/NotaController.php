@@ -5,28 +5,35 @@ namespace App\Http\Controllers;
 use App\Models\Nota;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class NotaController extends Controller
 {
-    // 1. Listar apenas as notas do usuário logado
-    public function index()
+    // 1. Lista as notas com Busca e Paginação
+    public function index(Request $request)
     {
-        $notas = Nota::where('user_id', Auth::id())->latest()->get();
-        return view('notas.index', compact('notas'));
+        $busca = $request->get('busca');
+
+        $notas = Nota::where('user_id', Auth::id())
+            ->when($busca, function ($query, $busca) {
+                return $query->where('titulo', 'like', "%{$busca}%");
+            })
+            ->latest()
+            ->paginate(5);
+
+        return view('notas.index', compact('notas', 'busca'));
     }
 
-    // 2. Mostrar o formulário de criação
     public function create()
     {
         return view('notas.create');
     }
 
-    // 3. Salvar a nova nota no banco (já vinculada ao usuário)
     public function store(Request $request)
     {
         $request->validate([
             'titulo' => 'required|max:255',
-            'conteudo' => 'required',
+            'conteudo' => 'required'
         ]);
 
         Nota::create([
@@ -38,46 +45,64 @@ class NotaController extends Controller
         return redirect()->route('notas.index')->with('success', 'Nota criada com sucesso!');
     }
 
-    // 4. Mostrar o formulário de edição (com verificação de segurança)
+    public function show(Nota $nota)
+    {
+        Gate::authorize('view', $nota); // Usando a Policy para verificação
+        return view('notas.show', compact('nota'));
+    }
+
     public function edit(Nota $nota)
     {
-        // Se a nota não pertencer ao usuário logado, bloqueia o acesso
-        if ($nota->user_id !== Auth::id()) {
-            abort(403, 'Acesso não autorizado.');
-        }
-
+        Gate::authorize('update', $nota);
         return view('notas.edit', compact('nota'));
     }
 
-    // 5. Atualizar a nota
     public function update(Request $request, Nota $nota)
     {
-        if ($nota->user_id !== Auth::id()) {
-            abort(403, 'Acesso não autorizado.');
-        }
+        Gate::authorize('update', $nota);
 
         $request->validate([
             'titulo' => 'required|max:255',
-            'conteudo' => 'required',
+            'conteudo' => 'required'
         ]);
-
-        $nota->update([
-            'titulo' => $request->titulo,
-            'conteudo' => $request->conteudo,
-        ]);
+        
+        $nota->update($request->only(['titulo', 'conteudo']));
 
         return redirect()->route('notas.index')->with('success', 'Nota atualizada com sucesso!');
     }
 
-    // 6. Excluir a nota (Soft Delete)
     public function destroy(Nota $nota)
     {
-        if ($nota->user_id !== Auth::id()) {
-            abort(403, 'Acesso não autorizado.');
-        }
-
+        Gate::authorize('delete', $nota);
         $nota->delete();
+        return redirect()->route('notas.index')->with('success', 'Nota enviada para a lixeira!');
+    }
 
-        return redirect()->route('notas.index')->with('success', 'Nota excluída com sucesso!');
+    // ==========================================
+    // MÉTODOS DA LIXEIRA (Soft Deletes)
+    // ==========================================
+    
+    public function lixeira()
+    {
+        $notas = Nota::onlyTrashed()->where('user_id', Auth::id())->latest()->paginate(5);
+        return view('notas.lixeira', compact('notas'));
+    }
+
+    public function restaurar($id)
+    {
+        $nota = Nota::onlyTrashed()->findOrFail($id);
+        Gate::authorize('restore', $nota);
+        
+        $nota->restore();
+        return redirect()->route('notas.lixeira')->with('success', 'Nota restaurada com sucesso!');
+    }
+
+    public function forcarExclusao($id)
+    {
+        $nota = Nota::onlyTrashed()->findOrFail($id);
+        Gate::authorize('forceDelete', $nota);
+        
+        $nota->forceDelete();
+        return redirect()->route('notas.lixeira')->with('success', 'Nota excluída permanentemente!');
     }
 }
